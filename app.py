@@ -20,10 +20,15 @@ class StudentInput(BaseModel):
     exam_score: float
     branch: str
 
+from pathlib import Path
 from fastapi.responses import FileResponse
+
+BASE_DIR = Path(__file__).resolve().parent
+
 @app.get("/")
 def home():
-    return FileResponse("Template/index.html")
+    html_file = BASE_DIR / "Template" / "index.html"
+    return FileResponse(html_file)
 
 @app.post("/predict")
 def predict(data: StudentInput):
