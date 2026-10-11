@@ -1,0 +1,13 @@
+# --- API (app.py) ---
+fastapi
+uvicorn[standard]
+pydantic
+joblib
+pandas
+scikit-learn
+
+# --- Notebook only (Decision_Tree.ipynb) - uncomment if needed ---
+# numpy
+# matplotlib
+# seaborn
+# jupyter
