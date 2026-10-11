@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placement Predictor</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#fff; --text:#1c2333; --muted:#6b7490; --border:#dfe3ee;
+    --primary:#4f46e5; --primary-2:#7c3aed; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --ring:rgba(79,70,229,.18);
+    --track:#dfe3ee;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f1220; --card:#181c2e; --text:#e8ebf7; --muted:#8e97b8; --border:#2a3050; --ring:rgba(124,58,237,.3); --track:#2a3050}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+    min-height:100vh;padding:32px 16px;background-image:radial-gradient(900px 400px at 50% -100px,rgba(124,58,237,.18),transparent)}
+  .wrap{max-width:780px;margin:0 auto}
+  header{text-align:center;margin-bottom:24px}
+  header h1{margin:0 0 6px;font-size:1.9rem;background:linear-gradient(90deg,var(--primary),var(--primary-2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:0;color:var(--muted)}
+  .status{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:.8rem;color:var(--muted);
+    padding:4px 12px;border:1px solid var(--border);border-radius:99px;background:var(--card)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#aaa}
+  .dot.on{background:var(--ok)} .dot.off{background:var(--bad)} .dot.wait{background:var(--warn);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.3}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 8px 30px rgba(20,25,60,.07)}
+  .banner{display:none;margin-bottom:16px;padding:10px 14px;border-radius:10px;font-size:.85rem;border:1px solid var(--warn);background:rgba(217,119,6,.1)}
+  .banner.show{display:block}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px}
+  @media(max-width:620px){.grid{grid-template-columns:1fr}}
+  label{display:block;font-size:.85rem;font-weight:600;margin-bottom:6px}
+  label small{font-weight:400;color:var(--muted)}
+  input[type=text],input[type=number],select{width:100%;padding:10px 12px;font:inherit;color:var(--text);background:var(--bg);
+    border:1px solid var(--border);border-radius:10px;outline:none;transition:.15s}
+  input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
+  input.invalid{border-color:var(--bad)}
+  .slicer{display:flex;align-items:center;gap:12px}
+  .slicer input[type=number]{width:84px;flex:none;text-align:center;padding:8px 6px}
+  input[type=range]{flex:1;min-width:0;height:6px;border-radius:99px;appearance:none;-webkit-appearance:none;cursor:pointer;
+    background:linear-gradient(90deg,var(--primary),var(--primary-2)) 0/var(--p,50%) 100% no-repeat,var(--track)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;
+    border:3px solid var(--primary);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid var(--primary)}
+  input[type=range]:focus-visible{outline:2px solid var(--primary);outline-offset:6px}
+  .ticks{display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:4px;padding-right:96px}
+  .err{color:var(--bad);font-size:.75rem;min-height:1em;margin-top:2px}
+  .actions{display:flex;gap:12px;margin-top:18px}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;transition:.15s}
+  #predictBtn{flex:1;color:#fff;background:linear-gradient(90deg,var(--primary),var(--primary-2))}
+  #predictBtn:hover{transform:translateY(-1px);box-shadow:0 6px 16px var(--ring)}
+  #predictBtn:disabled{opacity:.65;cursor:wait;transform:none}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  #result{margin-top:20px;display:none;padding:22px;border-radius:14px;text-align:center;animation:pop .35s ease}
+  #result.placed{display:block;background:rgba(22,163,74,.1);border:1px solid var(--ok)}
+  #result.not{display:block;background:rgba(220,38,38,.1);border:1px solid var(--bad)}
+  #result.error{display:block;background:rgba(217,119,6,.1);border:1px solid var(--warn);text-align:left}
+  #result .icon{font-size:2.4rem}
+  #result h2{margin:6px 0 2px;font-size:1.4rem}
+  #result p,#result li{color:var(--muted);font-size:.9rem;margin:4px 0}
+  #result ul{margin:6px 0 0;padding-left:20px}
+  #result.error .icon{font-size:1.6rem}
+  .placed h2{color:var(--ok)} .not h2{color:var(--bad)}
+  details{margin-top:18px;font-size:.85rem;color:var(--muted)}
+  summary{cursor:pointer}
+  .api-row{display:flex;gap:8px;margin-top:8px}
+  .api-row button{padding:10px 14px;color:#fff;background:var(--primary)}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;
+    animation:r .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes r{to{transform:rotate(360deg)}}
+  @keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+  footer{text-align:center;margin-top:18px;font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎓 Placement Predictor</h1>
+    <p>Adjust the sliders (or type values) to predict a student's placement outcome.</p>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusTxt">Checking API…</span></div>
+  </header>
+
+  <div class="card">
+    <div class="banner" id="banner"></div>
+    <form id="form" novalidate>
+      <div class="grid">
+        <div>
+          <label for="gender">Gender</label>
+          <select id="gender"><option value="Male">Male</option><option value="Female">Female</option></select>
+        </div>
+        <div>
+          <label for="branch">Branch</label>
+          <select id="branch">
+            <option value="CSE">CSE</option><option value="IT">IT</option><option value="ECE">ECE</option>
+            <option value="MECHANICAL">Mechanical</option><option value="CIVIL">Civil</option><option value="COMMERCE">Commerce</option>
+          </select>
+        </div>
+        <div>
+          <label for="extracurricular">Extracurricular activities</label>
+          <select id="extracurricular"><option value="Yes">Yes</option><option value="No">No</option></select>
+        </div>
+        <div id="sliders" style="display:contents"></div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" id="predictBtn">Predict Placement</button>
+        <button type="button" id="resetBtn" class="ghost">Reset</button>
+      </div>
+    </form>
+
+    <div id="result" role="status" aria-live="polite"></div>
+
+    <details id="settings">
+      <summary>API settings</summary>
+      <div class="api-row">
+        <input id="apiUrl" type="text" placeholder="https://your-service.onrender.com" aria-label="API base URL" autocomplete="off">
+        <button type="button" id="saveApi">Save &amp; test</button>
+      </div>
+      <div class="err" id="apiErr"></div>
+    </details>
+  </div>
+  <footer>Decision Tree model · FastAPI backend</footer>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  /* ---------- Slider fields (order matches API fields) ---------- */
+  const FIELDS = [
+    {id:"study_hours",           label:"Study hours",           unit:"hrs/day", min:0, max:12,  step:0.1, def:4},
+    {id:"attendance",            label:"Attendance",            unit:"%",       min:0, max:100, step:0.1, def:75},
+    {id:"sleep_hours",           label:"Sleep hours",           unit:"hrs/day", min:3, max:12,  step:0.1, def:7},
+    {id:"internet_usage",        label:"Internet usage",        unit:"hrs/day", min:0, max:12,  step:0.1, def:4},
+    {id:"assignments_completed", label:"Assignments completed", unit:"count",   min:0, max:20,  step:1,   def:10, int:true},
+    {id:"previous_score",        label:"Previous score",        unit:"0–100",   min:0, max:100, step:0.1, def:60},
+    {id:"exam_score",            label:"Exam score",            unit:"0–100",   min:0, max:100, step:0.1, def:60},
+  ];
+  const EXPECTED_KEYS = ["gender","branch","extracurricular",...FIELDS.map(f => f.id)];
+
+  FIELDS.forEach(f => {
+    const d = document.createElement("div");
+    d.innerHTML = `
+      <label for="${f.id}">${f.label} <small>(${f.unit})</small></label>
+      <div class="slicer">
+        <input type="range" id="${f.id}_r" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.def}" aria-label="${f.label} slider">
+        <input type="number" id="${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.def}" inputmode="decimal">
+      </div>
+      <div class="ticks"><span>${f.min}</span><span>${f.max}</span></div>
+      <div class="err" id="${f.id}_e"></div>`;
+    $("sliders").appendChild(d);
+    const r = $(f.id+"_r"), n = $(f.id);
+    const fill = () => { const p = ((+r.value - f.min)/(f.max - f.min))*100; r.style.setProperty("--p", p+"%"); };
+    r.addEventListener("input", () => { n.value = r.value; n.classList.remove("invalid"); $(f.id+"_e").textContent=""; fill(); });
+    n.addEventListener("input", () => { if(n.value !== "" && !isNaN(+n.value)) r.value = Math.min(f.max, Math.max(f.min, +n.value)); fill(); });
+    f.fill = fill; fill();
+  });
+
+  /* ---------- API URL handling ---------- */
+  const LS = "placement_api_url";
+  const store = {
+    get(){ try{ return localStorage.getItem(LS) || ""; }catch{ return ""; } },
+    set(v){ try{ localStorage.setItem(LS, v); }catch{} }
+  };
+  const isLocalPage = ["", "localhost", "127.0.0.1"].includes(location.hostname);
+  const qp = new URLSearchParams(location.search).get("api");
+  $("apiUrl").value = qp || store.get() || (isLocalPage ? "http://127.0.0.1:8000" : "");
+
+  // returns {url} or {error}
+  function getApi(){
+    let v = $("apiUrl").value.trim().replace(/\/+$/, "");
+    if(!v) return {error:"Enter your backend URL in API settings (e.g. https://your-service.onrender.com)."};
+    if(/YOUR-BACKEND|your-service|example\.com/i.test(v)) return {error:"Replace the placeholder with your real backend URL in API settings."};
+    if(!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
+    let u; try{ u = new URL(v); }catch{ return {error:"That doesn't look like a valid URL."}; }
+    if(!/^https?:$/.test(u.protocol)) return {error:"URL must start with http:// or https://"};
+    if(location.protocol === "https:" && u.protocol === "http:" && !["localhost","127.0.0.1"].includes(u.hostname))
+      return {error:"This page is served over HTTPS, so the browser blocks an http:// API (mixed content). Use an https:// backend URL."};
+    return {url: u.origin + (u.pathname === "/" ? "" : u.pathname.replace(/\/+$/, ""))};
+  }
+
+  /* ---------- helpers ---------- */
+  function setStatus(kind, text){ $("dot").className = "dot " + kind; $("statusTxt").textContent = text; }
+  function banner(msg){ const b=$("banner"); b.textContent = msg||""; b.classList.toggle("show", !!msg); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+  async function timedFetch(url, opts={}, ms=15000){
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+    try{ return await fetch(url, {...opts, signal: ctl.signal}); } finally{ clearTimeout(t); }
+  }
+  // Tells apart "server unreachable" from "reachable but blocked by CORS"
+  async function diagnose(url){
+    try{ await timedFetch(url, {mode:"no-cors"}, 10000); return "cors"; }
+    catch(e){ return e.name === "AbortError" ? "timeout" : "network"; }
+  }
+
+  /* ---------- Health check (does not rely on "/" existing) ---------- */
+  async function checkApi(){
+    const a = getApi();
+    if(a.error){ setStatus("off","API URL not set"); banner(a.error); return false; }
+    banner(""); setStatus("wait","Connecting… (free servers can take ~30s to wake)");
+    try{
+      let res = await timedFetch(a.url + "/openapi.json", {}, 45000);
+      if(res.ok){
+        try{
+          const spec = await res.json();
+          if(!spec.paths || !spec.paths["/predict"]){
+            setStatus("on","API online"); banner("Connected, but no /predict route was found on this server."); return true;
+          }
+          const props = spec.components?.schemas?.StudentInput?.properties;
+          if(props){
+            const keys = Object.keys(props);
+            const missing = keys.filter(k => !EXPECTED_KEYS.includes(k));
+            const extra = EXPECTED_KEYS.filter(k => !keys.includes(k));
+            if(missing.length || extra.length)
+              banner("Field mismatch with backend. Backend expects: " + keys.join(", ") + ".");
+          }
+        }catch{}
+        setStatus("on","API online"); return true;
+      }
+      // /openapi.json missing/disabled: any HTTP reply from the server still means it is reachable
+      res = await timedFetch(a.url + "/", {}, 20000);
+      setStatus("on","API reachable (HTTP " + res.status + ")"); return true;
+    }catch(e){
+      const why = e.name === "AbortError" ? "timeout" : await diagnose(a.url);
+      if(why === "cors"){ setStatus("off","Blocked by CORS"); banner("The server is up but the browser blocked the request. Add CORSMiddleware (allow_origins) to your FastAPI app."); }
+      else if(why === "timeout"){ setStatus("off","Timed out"); banner("The server took too long to respond. If it's on Render's free tier, wait a minute and click Save & test."); }
+      else { setStatus("off","API offline"); banner("Can't reach " + a.url + ". Check the URL and that the backend is running."); }
+      return false;
+    }
+  }
+
+  /* ---------- Validation ---------- */
+  function validate(){
+    let ok = true;
+    FIELDS.forEach(f => {
+      const el = $(f.id), v = el.value.trim(), n = Number(v);
+      let msg = "";
+      if(v === "" || !Number.isFinite(n)) msg = "Required – enter a number";
+      else if(n < f.min || n > f.max) msg = `Must be between ${f.min} and ${f.max}`;
+      else if(f.int && !Number.isInteger(n)) msg = "Must be a whole number";
+      el.classList.toggle("invalid", !!msg);
+      $(f.id+"_e").textContent = msg;
+      if(msg) ok = false;
+    });
+    return ok;
+  }
+
+  /* ---------- Response interpretation ---------- */
+  function toPlaced(data){
+    let v = data;
+    if(v && typeof v === "object" && !Array.isArray(v)){
+      const k = ["prediction","result","placement","placement_status","status","label","placed","output"].find(k => k in v);
+      if(!k) return null;
+      v = v[k];
+    }
+    if(Array.isArray(v) && v.length === 1) v = v[0];
+    if(typeof v === "boolean") return v;
+    if(typeof v === "number") return v === 1 ? true : v === 0 ? false : null;
+    if(typeof v === "string"){
+      const s = v.trim().toLowerCase().replace(/[\s_-]+/g," ");
+      if(["placed","1","true","yes","selected"].includes(s)) return true;
+      if(["not placed","0","false","no","unplaced","not selected"].includes(s)) return false;
+    }
+    return null;
+  }
+
+  function show(cls, icon, title, html){
+    const r = $("result");
+    r.className = cls;
+    r.innerHTML = `<div class="icon">${icon}</div><h2>${title}</h2>${html}`;
+    r.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+  const showErr = (title, items) =>
+    show("error","⚠️",title, "<ul>" + [].concat(items).map(i => `<li>${i}</li>`).join("") + "</ul>");
+
+  /* ---------- Submit ---------- */
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const a = getApi();
+    if(a.error){ $("settings").open = true; $("apiErr").textContent = a.error; showErr("API URL problem", esc(a.error)); return; }
+    $("apiErr").textContent = "";
+    if(!validate()){ showErr("Please fix the highlighted fields", "Some values are missing or out of range."); return; }
+
+    const body = {gender:$("gender").value, branch:$("branch").value, extracurricular:$("extracurricular").value};
+    FIELDS.forEach(f => body[f.id] = Number($(f.id).value));
+
+    const btn = $("predictBtn");
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Predicting…';
+    const slow = setTimeout(() => { btn.innerHTML = '<span class="spin"></span>Waking server…'; }, 5000);
+    try{
+      let res;
+      try{
+        res = await timedFetch(a.url + "/predict", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)}, 60000);
+      }catch(err){
+        const why = err.name === "AbortError" ? "timeout" : await diagnose(a.url);
+        if(why === "timeout") return showErr("Request timed out", ["The server didn't answer within 60 seconds.","On Render's free tier it may be starting up – try again in a minute."]);
+        if(why === "cors") return showErr("Blocked by CORS", ["The server is reachable, but the browser blocked the response.","Add <code>CORSMiddleware</code> with your frontend's origin to <code>app.py</code> and redeploy."]);
+        setStatus("off","API offline");
+        return showErr("Can't connect to the server", ["Couldn't reach <code>"+esc(a.url)+"</code>.","Check the URL, your internet connection, and that the backend is running."]);
+      }
+
+      const raw = await res.text();
+      if(!res.ok){
+        let detail = "";
+        try{
+          const j = JSON.parse(raw);
+          if(Array.isArray(j.detail)){
+            detail = j.detail.map(d => `<code>${esc((d.loc||[]).slice(1).join("."))}</code>: ${esc(d.msg)}`);
+            j.detail.forEach(d => { const el = $((d.loc||[]).slice(-1)[0]); if(el) el.classList.add("invalid"); });
+          } else if(j.detail) detail = esc(typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail));
+        }catch{ detail = esc(raw.slice(0,200)); }
+        const title = res.status === 422 ? "Backend rejected the input (422)"
+                    : res.status === 404 ? "/predict not found (404)"
+                    : res.status >= 500 ? `Server error (${res.status})` : `Request failed (${res.status})`;
+        const hint = res.status === 422 ? "Field names/types differ from the backend's StudentInput model."
+                   : res.status === 404 ? "Check that your backend URL is correct and exposes POST /predict."
+                   : res.status >= 500 ? "The model or server crashed – check your backend logs." : "";
+        return showErr(title, [hint, detail].flat().filter(Boolean));
+      }
+
+      let data;
+      try{ data = JSON.parse(raw); }
+      catch{
+        return showErr("Response is not valid JSON", [
+          "Content-Type: <code>"+esc(res.headers.get("content-type")||"unknown")+"</code>",
+          "Start of response: <code>"+esc(raw.slice(0,120))+"</code>",
+          "You may be pointing at a website/proxy instead of the FastAPI backend."]);
+      }
+      const placed = toPlaced(data);
+      if(placed === null)
+        return showErr("Unexpected response format", ["Couldn't find a prediction in: <code>"+esc(JSON.stringify(data).slice(0,160))+"</code>"]);
+
+      setStatus("on","API online");
+      placed
+        ? show("placed","🎉","Placed","<p>The model predicts this student is likely to be placed.</p>")
+        : show("not","📉","Not Placed","<p>The model predicts this student is unlikely to be placed.</p>");
+    }finally{
+      clearTimeout(slow); btn.disabled = false; btn.textContent = "Predict Placement";
+    }
+  });
+
+  /* ---------- Reset & settings ---------- */
+  $("resetBtn").addEventListener("click", () => {
+    $("form").reset();
+    FIELDS.forEach(f => { $(f.id+"_r").value = f.def; $(f.id).classList.remove("invalid"); $(f.id+"_e").textContent = ""; f.fill(); });
+    $("result").className = ""; $("result").innerHTML = "";
+  });
+
+  async function saveAndTest(){
+    const a = getApi();
+    $("apiErr").textContent = a.error || "";
+    if(a.error){ setStatus("off","API URL not set"); banner(a.error); return; }
+    $("apiUrl").value = a.url; store.set(a.url);
+    await checkApi();
+  }
+  $("saveApi").addEventListener("click", saveAndTest);
+  $("apiUrl").addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); saveAndTest(); } });
+
+  if(!$("apiUrl").value) $("settings").open = true;
+  checkApi();
+})();
+</script>
+</body>
+</html>
