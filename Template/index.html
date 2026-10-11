@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placement Predictor</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#fff; --text:#1c2333; --muted:#6b7490; --border:#dfe3ee;
+    --primary:#4f46e5; --primary-2:#7c3aed; --ok:#16a34a; --bad:#dc2626; --ring:rgba(79,70,229,.18);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0f1220; --card:#181c2e; --text:#e8ebf7; --muted:#8e97b8; --border:#2a3050; --ring:rgba(124,58,237,.3)}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+    min-height:100vh;padding:32px 16px;background-image:radial-gradient(900px 400px at 50% -100px,rgba(124,58,237,.18),transparent)}
+  .wrap{max-width:760px;margin:0 auto}
+  header{text-align:center;margin-bottom:24px}
+  header h1{margin:0 0 6px;font-size:1.9rem;background:linear-gradient(90deg,var(--primary),var(--primary-2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:0;color:var(--muted)}
+  .status{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:.8rem;color:var(--muted);
+    padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:var(--card)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#aaa}
+  .dot.on{background:var(--ok)} .dot.off{background:var(--bad)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;
+    box-shadow:0 8px 30px rgba(20,25,60,.07)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+  label{display:block;font-size:.85rem;font-weight:600;margin-bottom:6px}
+  label small{font-weight:400;color:var(--muted)}
+  input,select{width:100%;padding:11px 12px;font:inherit;color:var(--text);background:var(--bg);
+    border:1px solid var(--border);border-radius:10px;outline:none;transition:.15s}
+  input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
+  input.invalid{border-color:var(--bad)}
+  .err{color:var(--bad);font-size:.75rem;min-height:1em;margin-top:4px}
+  .actions{display:flex;gap:12px;margin-top:20px}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:13px 18px;cursor:pointer;transition:.15s}
+  #predictBtn{flex:1;color:#fff;background:linear-gradient(90deg,var(--primary),var(--primary-2))}
+  #predictBtn:hover{transform:translateY(-1px);box-shadow:0 6px 16px var(--ring)}
+  #predictBtn:disabled{opacity:.6;cursor:wait;transform:none}
+  #resetBtn{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  #result{margin-top:20px;display:none;text-align:center;padding:22px;border-radius:14px;animation:pop .35s ease}
+  #result.placed{display:block;background:rgba(22,163,74,.1);border:1px solid var(--ok)}
+  #result.not{display:block;background:rgba(220,38,38,.1);border:1px solid var(--bad)}
+  #result.error{display:block;background:rgba(245,158,11,.1);border:1px solid #f59e0b}
+  #result .icon{font-size:2.4rem}
+  #result h2{margin:6px 0 2px;font-size:1.5rem}
+  #result p{margin:0;color:var(--muted);font-size:.9rem}
+  .placed h2{color:var(--ok)} .not h2{color:var(--bad)}
+  details{margin-top:18px;font-size:.85rem;color:var(--muted)}
+  details input{margin-top:8px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff6;border-top-color:#fff;border-radius:50%;
+    animation:r .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes r{to{transform:rotate(360deg)}}
+  @keyframes pop{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+  footer{text-align:center;margin-top:18px;font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎓 Placement Predictor</h1>
+    <p>Enter a student's details to predict their placement outcome.</p>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusTxt">Checking API…</span></div>
+  </header>
+
+  <div class="card">
+    <form id="form" novalidate>
+      <div class="grid">
+        <div>
+          <label for="gender">Gender</label>
+          <select id="gender"><option value="male">Male</option><option value="female">Female</option></select>
+        </div>
+        <div>
+          <label for="branch">Branch</label>
+          <select id="branch">
+            <option>CSE</option><option>IT</option><option>ECE</option>
+            <option>Mechanical</option><option>Civil</option><option>Commerce</option>
+          </select>
+        </div>
+        <div>
+          <label for="study_hours">Study hours <small>/day (0–12)</small></label>
+          <input id="study_hours" type="number" step="0.1" min="0" max="12" placeholder="e.g. 3.5">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="attendance">Attendance <small>% (0–100)</small></label>
+          <input id="attendance" type="number" step="0.1" min="0" max="100" placeholder="e.g. 76">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="sleep_hours">Sleep hours <small>/day (3–12)</small></label>
+          <input id="sleep_hours" type="number" step="0.1" min="3" max="12" placeholder="e.g. 6.8">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="internet_usage">Internet usage <small>hrs/day (0–12)</small></label>
+          <input id="internet_usage" type="number" step="0.1" min="0" max="12" placeholder="e.g. 4.5">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="assignments_completed">Assignments completed <small>(0–20)</small></label>
+          <input id="assignments_completed" type="number" step="1" min="0" max="20" placeholder="e.g. 13">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="previous_score">Previous score <small>(0–100)</small></label>
+          <input id="previous_score" type="number" step="0.1" min="0" max="100" placeholder="e.g. 62">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="exam_score">Exam score <small>(0–100)</small></label>
+          <input id="exam_score" type="number" step="0.1" min="0" max="100" placeholder="e.g. 60">
+          <div class="err"></div>
+        </div>
+        <div>
+          <label for="extracurricular">Extracurricular activities</label>
+          <select id="extracurricular"><option value="yes">Yes</option><option value="no">No</option></select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" id="predictBtn">Predict Placement</button>
+        <button type="button" id="resetBtn">Reset</button>
+      </div>
+    </form>
+
+    <div id="result" role="status" aria-live="polite"></div>
+
+    <details>
+      <summary>API settings</summary>
+      <input id="apiUrl" type="text" value="http://127.0.0.1:8000" aria-label="API base URL">
+    </details>
+  </div>
+  <footer>Powered by a Decision Tree model · FastAPI backend</footer>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const numFields = ["study_hours","attendance","sleep_hours","internet_usage",
+                     "assignments_completed","previous_score","exam_score"];
+  const api = () => $("apiUrl").value.trim().replace(/\/+$/, "");
+
+  async function checkApi(){
+    try{
+      const r = await fetch(api() + "/");
+      if(!r.ok) throw 0;
+      $("dot").className = "dot on"; $("statusTxt").textContent = "API online";
+    }catch{
+      $("dot").className = "dot off"; $("statusTxt").textContent = "API offline";
+    }
+  }
+
+  function validate(){
+    let ok = true;
+    numFields.forEach(id => {
+      const el = $(id), err = el.parentElement.querySelector(".err");
+      const v = el.value.trim(), n = parseFloat(v);
+      let msg = "";
+      if(v === "" || isNaN(n)) msg = "Required";
+      else if(n < +el.min || n > +el.max) msg = `Must be ${el.min}–${el.max}`;
+      el.classList.toggle("invalid", !!msg);
+      err.textContent = msg;
+      if(msg) ok = false;
+    });
+    return ok;
+  }
+
+  function show(cls, icon, title, text){
+    const r = $("result");
+    r.className = cls;
+    r.innerHTML = `<div class="icon">${icon}</div><h2>${title}</h2><p>${text}</p>`;
+    r.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    if(!validate()) return;
+    const body = {
+      gender: $("gender").value,
+      branch: $("branch").value,
+      extracurricular: $("extracurricular").value
+    };
+    numFields.forEach(id => body[id] = parseFloat($(id).value));
+
+    const btn = $("predictBtn");
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Predicting…';
+    try{
+      const res = await fetch(api() + "/predict", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+      });
+      if(!res.ok) throw new Error("Server returned " + res.status);
+      const data = await res.json();
+      if(data.prediction === "Placed")
+        show("placed","🎉","Placed","The model predicts this student is likely to be placed.");
+      else
+        show("not","📉","Not Placed","The model predicts this student is unlikely to be placed.");
+      $("dot").className = "dot on"; $("statusTxt").textContent = "API online";
+    }catch(err){
+      show("error","⚠️","Couldn't get a prediction",
+        "Make sure the API is running and CORS is enabled. (" + err.message + ")");
+      $("dot").className = "dot off"; $("statusTxt").textContent = "API offline";
+    }finally{
+      btn.disabled = false; btn.textContent = "Predict Placement";
+    }
+  });
+
+  $("resetBtn").addEventListener("click", () => {
+    $("form").reset();
+    numFields.forEach(id => { $(id).classList.remove("invalid"); $(id).parentElement.querySelector(".err").textContent = ""; });
+    $("result").className = ""; $("result").innerHTML = "";
+  });
+
+  $("apiUrl").addEventListener("change", checkApi);
+  checkApi();
+})();
+</script>
+</body>
+</html>
